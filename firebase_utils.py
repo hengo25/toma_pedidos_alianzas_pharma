@@ -1,14 +1,20 @@
 import os
+import json
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-CRED_FILE = os.path.join(os.getcwd(), "credenciales.json")
-if not os.path.exists(CRED_FILE):
-    raise FileNotFoundError(f"No encontré 'credenciales.json' en {os.getcwd()}")
+# 🔑 Cargar credenciales desde variable de entorno
+cred_json = os.environ.get("CREDENCIALES_JSON")
+if not cred_json:
+    raise ValueError("⚠️ No encontré la variable de entorno CREDENCIALES_JSON en Render.")
 
+# Convertir string JSON a diccionario
+cred_dict = json.loads(cred_json)
+
+# Inicializar Firebase con las credenciales
 if not firebase_admin._apps:
-    cred = credentials.Certificate(CRED_FILE)
+    cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -87,3 +93,4 @@ def descontar_inventario(items: list):
         current = int(data.get("stock", 0))
         new_stock = max(0, current - cant)
         ref.update({"stock": new_stock})
+
