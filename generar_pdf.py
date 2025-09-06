@@ -39,7 +39,7 @@ def generar_pdf(productos, nombre_archivo="catalogo.pdf"):
 
     data.append(["", "", "", "", "", "Total", f"${total:,.2f}"])
 
-    tabla = Table(data, colWidths=[70, 130, 150, 50, 60, 60, 70])
+    tabla = Table(data, colWidths=[70, 200, 120, 50, 60, 60, 70])
     tabla.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#4b4b4b")),
         ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
@@ -52,3 +52,4 @@ def generar_pdf(productos, nombre_archivo="catalogo.pdf"):
     elementos.append(tabla)
     doc.build(elementos)
     return ruta_pdf
+
