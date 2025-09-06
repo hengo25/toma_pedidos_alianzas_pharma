@@ -1,4 +1,3 @@
-# generar_pdf.py
 import os
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
@@ -18,8 +17,8 @@ def generar_pdf(productos, nombre_archivo="catalogo.pdf"):
     elementos.append(Paragraph("Catálogo de Productos", estilos["Title"]))
     elementos.append(Spacer(1, 12))
 
-    # Table header
-    data = [["Imagen", "Producto", "Descripción", "Cantidad", "Precio1", "Precio2", "Subtotal"]]
+    # Encabezados de la tabla
+    data = [["Imagen", "Producto", "Laboratorio", "Cantidad", "Precio1", "Precio2", "Subtotal"]]
     total = 0
     for p in productos:
         cantidad = int(p.get("cantidad", 1) or 0)
@@ -27,7 +26,7 @@ def generar_pdf(productos, nombre_archivo="catalogo.pdf"):
         subtotal = cantidad * precio
         total += subtotal
 
-        # imagen (si local) -> usar Image de reportlab (tamaño reducido)
+        # Imagen (si existe en local)
         img_path = p.get("imagen_local") or None
         img_obj = ""
         if img_path and os.path.exists(img_path):
@@ -35,11 +34,23 @@ def generar_pdf(productos, nombre_archivo="catalogo.pdf"):
                 img_obj = Image(img_path, width=60, height=60)
             except Exception:
                 img_obj = ""
-        data.append([img_obj, p.get("nombre", ""), p.get("descripcion", ""), str(cantidad), f"${precio:,.2f}", f"${p.get('precio2', '')}", f"${subtotal:,.2f}"])
 
+        data.append([
+            img_obj,
+            p.get("nombre", ""),
+            p.get("laboratorio", ""),
+            str(cantidad),
+            f"${precio:,.2f}",
+            f"${p.get('precio2', '')}",
+            f"${subtotal:,.2f}"
+        ])
+
+    # Fila total
     data.append(["", "", "", "", "", "Total", f"${total:,.2f}"])
 
-    tabla = Table(data, colWidths=[70, 200, 120, 50, 60, 60, 70])
+    # 🔹 Ajuste de anchos: más espacio para Producto y Laboratorio
+    tabla = Table(data, colWidths=[70, 220, 120, 50, 60, 60, 70])
+
     tabla.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#4b4b4b")),
         ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
@@ -52,4 +63,5 @@ def generar_pdf(productos, nombre_archivo="catalogo.pdf"):
     elementos.append(tabla)
     doc.build(elementos)
     return ruta_pdf
+
 
