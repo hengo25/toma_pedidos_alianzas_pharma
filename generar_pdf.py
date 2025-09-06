@@ -1,8 +1,8 @@
 import os
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PDFS_DIR = os.path.join(BASE_DIR, "pdfs")
@@ -14,51 +14,38 @@ def generar_pdf(productos, nombre_archivo="catalogo.pdf"):
     elementos = []
     estilos = getSampleStyleSheet()
 
-    # 🔹 Estilo para texto de celdas con justificación
-    estilos.add(ParagraphStyle(
-        name="TablaTexto",
-        fontSize=9,
-        leading=11,
-        alignment=4   # 4 = Justify
-    ))
-
-    elementos.append(Paragraph("Factura / Pedido", estilos["Title"]))
+    elementos.append(Paragraph("Catálogo de Productos", estilos["Title"]))
     elementos.append(Spacer(1, 12))
 
-    # Encabezados
-    data = [["Producto", "Laboratorio", "Cantidad", "Precio", "Subtotal"]]
+    # Table header
+    data = [["Imagen", "Producto", "Descripción", "Cantidad", "Precio1", "Precio2", "Subtotal"]]
     total = 0
     for p in productos:
         cantidad = int(p.get("cantidad", 1) or 0)
-        precio = float(p.get("precio", 0) or 0)
+        precio = float(p.get("precio1", p.get("precio", 0)) or 0)
         subtotal = cantidad * precio
         total += subtotal
 
-        # 🔹 Usamos Paragraph para que el texto se ajuste y se justifique
-        producto = Paragraph(p.get("nombre", ""), estilos["TablaTexto"])
-        laboratorio = Paragraph(p.get("laboratorio", ""), estilos["TablaTexto"])
+        # imagen (si local) -> usar Image de reportlab (tamaño reducido)
+        img_path = p.get("imagen_local") or None
+        img_obj = ""
+        if img_path and os.path.exists(img_path):
+            try:
+                img_obj = Image(img_path, width=60, height=60)
+            except Exception:
+                img_obj = ""
+        data.append([img_obj, p.get("nombre", ""), p.get("descripcion", ""), str(cantidad), f"${precio:,.2f}", f"${p.get('precio2', '')}", f"${subtotal:,.2f}"])
 
-        data.append([
-            producto,
-            laboratorio,
-            str(cantidad),
-            f"${precio:,.2f}",
-            f"${subtotal:,.2f}"
-        ])
+    data.append(["", "", "", "", "", "Total", f"${total:,.2f}"])
 
-    # Fila total
-    data.append(["", "", "", "TOTAL", f"${total:,.2f}"])
-
-    # Ajustamos anchos
-    tabla = Table(data, colWidths=[220, 120, 50, 60, 70])
-
+    tabla = Table(data, colWidths=[70, 130, 150, 50, 60, 60, 70])
     tabla.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#003399")),
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#4b4b4b")),
         ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
         ("GRID", (0,0), (-1,-1), 0.5, colors.black),
-        ("VALIGN", (0,0), (-1,-1), "TOP"),   # texto alineado arriba
-        ("ALIGN", (2,1), (2,-2), "CENTER"),  # cantidad centrada
-        ("ALIGN", (3,1), (4,-2), "RIGHT"),   # precios a la derecha
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("ALIGN", (3,1), (3,-2), "CENTER"),
+        ("ALIGN", (4,1), (6,-2), "RIGHT"),
     ]))
 
     elementos.append(tabla)
