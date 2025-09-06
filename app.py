@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 import firebase_utils as fu
 
 app = Flask(__name__)
@@ -20,6 +20,7 @@ def generar_pdf(path, cliente, items, total):
     doc = SimpleDocTemplate(path, pagesize=letter)
     styles = getSampleStyleSheet()
     elems = []
+
     elems.append(Paragraph("Factura / Pedido", styles["Title"]))
     elems.append(Spacer(1, 8))
     elems.append(Paragraph(f"Cliente: {cliente.get('nombre','')}", styles["Normal"]))
@@ -27,17 +28,33 @@ def generar_pdf(path, cliente, items, total):
         elems.append(Paragraph(f"Dirección: {cliente.get('direccion')}", styles["Normal"]))
     elems.append(Spacer(1, 12))
 
+    # 🔹 Estilo de celda con salto de línea
+    estilo_celda = ParagraphStyle(
+        name="celda",
+        fontSize=9,
+        leading=11,
+        wordWrap="CJK"
+    )
+
     data = [["Producto", "Laboratorio", "Cantidad", "Precio", "Subtotal"]]
     for it in items:
-        data.append([it["nombre"], it.get("laboratorio", ""), str(it["cantidad"]), f"${it['precio']:.2f}", f"${it['subtotal']:.2f}"])
+        data.append([
+            Paragraph(it["nombre"], estilo_celda),
+            Paragraph(it.get("laboratorio", ""), estilo_celda),
+            str(it["cantidad"]),
+            f"${it['precio']:.2f}",
+            f"${it['subtotal']:.2f}"
+        ])
     data.append(["", "", "", "TOTAL", f"${total:.2f}"])
 
-    table = Table(data, colWidths=[180, 100, 60, 80, 80])
+    table = Table(data, colWidths=[200, 120, 60, 80, 80])
     table.setStyle(TableStyle([
         ("BACKGROUND",(0,0),(-1,0),colors.darkblue),
         ("TEXTCOLOR",(0,0),(-1,0),colors.whitesmoke),
-        ("ALIGN",(2,1),(-1,-1),"CENTER"),
+        ("ALIGN",(2,1),(2,-2),"CENTER"),   # Cantidad centrada
+        ("ALIGN",(3,1),(4,-2),"RIGHT"),    # Precio y Subtotal a la derecha
         ("GRID",(0,0),(-1,-1),0.5,colors.black),
+        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
     ]))
     elems.append(table)
     doc.build(elems)
@@ -152,18 +169,16 @@ def productos_eliminar(id):
     return redirect(url_for("productos"))
 
 
-# Crear pedido (GET: show with pagination & search; JavaScript handles cart in browser)
+# Crear pedido
 @app.route("/crear_pedido")
 def crear_pedido():
     page = request.args.get("page", 1, type=int)
     search = request.args.get("search", "", type=str).strip()
     per_page = PER_PAGE
 
-    # clientes
     clientes_all = fu.get_all("clientes")
-
-    # productos (server-side search filter)
     productos_all = fu.get_all("productos")
+
     if search:
         productos_all = [p for p in productos_all if search.lower() in p.get("nombre","").lower()]
 
@@ -183,7 +198,7 @@ def crear_pedido():
                            search=search)
 
 
-# Guardar pedido: recibe JSON 'cart' (string) with items, plus cliente_id
+# Guardar pedido
 @app.route("/guardar_pedido", methods=["POST"])
 def guardar_pedido():
     cliente_id = request.form.get("cliente_id")
@@ -206,7 +221,6 @@ def guardar_pedido():
         flash("Cliente inválido.", "danger")
         return redirect(url_for("crear_pedido"))
 
-    # construir items y verificar stock en servidor
     items = []
     descontar = []
     total = 0.0
@@ -223,16 +237,20 @@ def guardar_pedido():
             flash(f"No hay stock suficiente para {prod.get('nombre')}.", "danger")
             return redirect(url_for("crear_pedido"))
         subtotal = float(prod.get("precio", 0)) * qty
-        items.append({"id": pid, "nombre": prod.get("nombre"), "laboratorio": prod.get("laboratorio",""), "cantidad": qty, "precio": prod.get("precio"), "subtotal": subtotal})
+        items.append({
+            "id": pid,
+            "nombre": prod.get("nombre"),
+            "laboratorio": prod.get("laboratorio",""),
+            "cantidad": qty,
+            "precio": prod.get("precio"),
+            "subtotal": subtotal
+        })
         descontar.append({"id": pid, "cantidad": qty})
         total += subtotal
 
-    # guardar pedido en Firestore
     pedido_id = fu.guardar_pedido(cliente_id, cliente, items, total)
-    # descontar inventario
     fu.descontar_inventario(descontar)
 
-    # generar PDF y entregar
     pdf_name = f"pedido_{pedido_id}.pdf"
     pdf_path = os.path.join(STATIC_DIR, pdf_name)
     try:
@@ -245,5 +263,4 @@ def guardar_pedido():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
 
